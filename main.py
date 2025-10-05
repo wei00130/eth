@@ -75,7 +75,7 @@ if start_time > end_time:
 
 # --- ZigZag 參數設定 ---
 st.sidebar.header("🔧 ZigZag 參數設定")
-threshold = st.sidebar.slider("Deviation (%)", 0.5, 10.0, 5.0, 0.5)
+threshold = st.sidebar.slider("Deviation (%)", 0.5, 10.0, 5.0, 0.1)
 depth = st.sidebar.slider("Depth (Pivot 前後比較長度)", 1, 20, 10)
 chart_height = st.sidebar.slider("調整圖表高度（單位：px）", 400, 1200, 550, step=50)
 
