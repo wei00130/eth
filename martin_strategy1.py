@@ -7,7 +7,7 @@ def martin_backtest(prices_close, prices_high, prices_low, times, direction,
 
     trades = []
     balance = initial_balance
-    last_exit_price = None  # ✅ 新增變數：記錄上一筆平倉價
+    last_exit_price = None  # ✅ 記錄上一筆平倉價
 
     stats = {
         "total_open_trades": 0,
@@ -19,15 +19,15 @@ def martin_backtest(prices_close, prices_high, prices_low, times, direction,
 
     i = 0
     while i < len(prices_close):
-        # ✅ 若有上一筆平倉價，則本次開倉用它，不用K棒收盤價
+        # ✅ 若有上一筆平倉價，則本次開倉用它
         entry_price = last_exit_price if last_exit_price is not None else prices_close[i]
 
         used_margin = 0
         position_size = 0
         avg_price = 0
         add_count = 0
-        last_add_price = entry_price
 
+        # ✅ 首次進場
         add_amount_now = add_amount / 2
         qty = (add_amount_now * leverage) / entry_price
         used_margin += add_amount_now
@@ -38,28 +38,34 @@ def martin_backtest(prices_close, prices_high, prices_low, times, direction,
         stats["total_open_trades"] += 1
         trades.append([times[i], "開倉", entry_price, position_size, balance, None, None, None])
 
+        # ✅ 預先計算每階加碼價位
+        if direction == 1:  # 多單往下加碼
+            add_prices = [entry_price * (1 - add_pct / 100 * (add_multiple ** n)) for n in range(max_add_times)]
+        else:  # 空單往上加碼
+            add_prices = [entry_price * (1 + add_pct / 100 * (add_multiple ** n)) for n in range(max_add_times)]
+
         i += 1
 
         while i < len(prices_close):
             high = prices_high[i]
             low = prices_low[i]
 
-            # 加碼條件
-            price_change_from_last_add = lambda price: (price - last_add_price) / last_add_price * 100 * direction * -1
+            # ✅ 加碼觸發條件（固定百分比價位）
+            if add_count < max_add_times:
+                target_add_price = add_prices[add_count]
+                trigger = (low <= target_add_price if direction == 1 else high >= target_add_price)
 
-            if price_change_from_last_add(low if direction == 1 else high) >= add_pct * (add_multiple ** add_count) and add_count < max_add_times:
-                trigger_price = low if direction == 1 else high
-                add_amount_now = add_amount * (add_amount_multiple ** add_count)
-                qty = (add_amount_now * leverage) / trigger_price
-                avg_price = (avg_price * position_size + trigger_price * qty) / (position_size + qty)
-                position_size += qty
-                used_margin += add_amount_now
-                balance -= add_amount_now
-                add_count += 1
-                last_add_price = trigger_price
-                trades.append([times[i], "加碼", trigger_price, position_size, balance, None, None, None])
+                if trigger:
+                    add_amount_now = add_amount * (add_amount_multiple ** add_count)
+                    qty = (add_amount_now * leverage) / target_add_price
+                    avg_price = (avg_price * position_size + target_add_price * qty) / (position_size + qty)
+                    position_size += qty
+                    used_margin += add_amount_now
+                    balance -= add_amount_now
+                    add_count += 1
+                    trades.append([times[i], "加碼", target_add_price, position_size, balance, None, None, None])
 
-            # 止盈 / 停損
+            # ✅ 計算止盈/停損
             pnl_pct_high = (high - avg_price) / avg_price * 100 * direction
             pnl_pct_low = (low - avg_price) / avg_price * 100 * direction
 
@@ -86,14 +92,14 @@ def martin_backtest(prices_close, prices_high, prices_low, times, direction,
                     round(pnl, 2), round((exit_price - avg_price) / avg_price * 100 * direction, 2), exit_reason
                 ])
 
-                last_exit_price = exit_price  # ✅ 新增：記錄平倉價作為下一筆開倉價
-                # 不要跳太多K棒，留在原地讓外層 while 立刻開下一筆
-                break
+                last_exit_price = exit_price  # ✅ 下一筆開倉用此價
+                break  # 結束當前交易
 
             i += 1
 
-        i += 1  # 移動到下一根K棒
+        i += 1  # 進入下一筆交易
 
+    # 結果輸出
     df_trades = pd.DataFrame(trades, columns=["時間", "動作", "價格", "持倉數量", "餘額", "獲利 (USDT)", "獲利 (%)", "結束原因"]).set_index("時間")
     df_stats = pd.DataFrame({
         "指標": ["總開倉次數", "止盈次數", "停損次數", "止盈累計金額", "停損累計金額"],
