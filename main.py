@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from zigzag import calculate_zigzag
-from martin_strategy1 import martin_backtest
+from martin_strategy2 import martin_backtest
 from update_daily import update_data
 
 
